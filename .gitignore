@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Docker
+.dockerignore
+
+# Banco de dados
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+*.log.*
+
+# IDE
+.vscode/
+.idea/
+
+# Ambiente
+.env
+.env.local
+appsettings.Development.json
+
+# Build
+publish/
