@@ -1,0 +1,11 @@
+services:
+  bankmore-api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      # MAPEIE seu banco local para dentro do container
+      - ./src/BankMore.API/bankmore.db:/app/data/bankmore.db
+      - ./src/BankMore.API/bankmore.db:/app/bankmore.db  # ou onde a app espera
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
