@@ -1,0 +1,438 @@
+{
+	"info": {
+		"_postman_id": "e52de946-c2e3-45c3-a469-4b5e089bb618",
+		"name": "BankMore",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "6661254",
+		"_collection_link": "https://aspnetcorewebapi-bruno.postman.co/workspace/WebAPI~8e50955c-7322-45c5-a454-a1fe4619cf87/collection/6661254-e52de946-c2e3-45c3-a469-4b5e089bb618?action=share&source=collection_link&creator=6661254"
+	},
+	"item": [
+		{
+			"name": "BankMore.API",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code >= 200 && pm.response.code <= 299) {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    \r",
+									"    // Tente todas as possibilidades\r",
+									"    var token = jsonData.token || \r",
+									"                jsonData.accessToken || \r",
+									"                jsonData.access_token ||\r",
+									"                (jsonData.tokens && jsonData.tokens.accessToken);\r",
+									"    \r",
+									"    if (token) {\r",
+									"        pm.environment.set(\"token\", token);\r",
+									"        console.log(\"✅ Token salvo:\", token.substring(0, 50) + \"...\");\r",
+									"    } else {\r",
+									"        console.log(\"❌ Estrutura desconhecida:\", jsonData);\r",
+									"    }\r",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"identificador\": \"171906\",\r\n    \"senha\": \"123456\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cadastrar",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code >= 200 && pm.response.code <= 299) {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    \r",
+									"    // Tente todas as possibilidades\r",
+									"    var token = jsonData.token || \r",
+									"                jsonData.accessToken || \r",
+									"                jsonData.access_token ||\r",
+									"                (jsonData.tokens && jsonData.tokens.accessToken);\r",
+									"    \r",
+									"    if (token) {\r",
+									"        pm.environment.set(\"token\", token);\r",
+									"        console.log(\"✅ Token salvo:\", token.substring(0, 50) + \"...\");\r",
+									"    } else {\r",
+									"        console.log(\"❌ Estrutura desconhecida:\", jsonData);\r",
+									"    }\r",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"cpf\": \"54636574087\",\r\n  \"nomeCompleto\": \"Marcelino Silva\",\r\n  \"senha\": \"123456\",\r\n  \"confirmacaoSenha\": \"123456\",\r\n  \"email\": \"marecelino@example.com\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/cadastrar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"cadastrar"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Movimentação",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"IdRequisicao\": \"deposito-inicial-001\",\r\n    \"NumeroConta\": \"A639DC66-871E-44D3-B9EA-9A45BB57EB74\",\r\n    \"Valor\": 2000.00,\r\n    \"Tipo\": \"C\",\r\n    \"Descricao\": \"Depósito para testar transferência\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movimentacao",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"movimentacao"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Dados Conta",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/conta/dados",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"conta",
+								"dados"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Conta Validar",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/conta/validar/212109",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"conta",
+								"validar",
+								"212109"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Inativar Conta",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"senha\": \"123456\",\r\n  \"confirmacaoSenha\": \"123456\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/conta/inativar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"conta",
+								"inativar"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Conta Saldo",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/saldo",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"saldo"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "BankMore.Transferencia.API",
+			"item": [
+				{
+					"name": "Transferência",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "teste-saldo-correto-003",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "BankMore-Transfer-2024-Secure",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"numeroContaDestino\": \"839366\",\r\n    \"valor\": 30.00,\r\n    \"descricao\": \"Teste saldo corrigido\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{transferenciaUrl}}/api/transferencia",
+							"host": [
+								"{{transferenciaUrl}}"
+							],
+							"path": [
+								"api",
+								"transferencia"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

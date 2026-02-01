@@ -1,14 +1,19 @@
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 8080
+
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
+COPY ["BankMoreAPI/BankMoreAPI.csproj", "BankMoreAPI/"]
+RUN dotnet restore "BankMoreAPI/BankMoreAPI.csproj"
 COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app/publish
+WORKDIR "/src/BankMoreAPI"
+RUN dotnet build "BankMoreAPI.csproj" -c Release -o /app/build
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM build AS publish
+RUN dotnet publish "BankMoreAPI.csproj" -c Release -o /app/publish
+
+FROM base AS final
 WORKDIR /app
-COPY --from=build /app/publish .
-# FORÇA HTTP na porta 8080
-ENV ASPNETCORE_URLS=http://+:8080
-ENV ASPNETCORE_ENVIRONMENT=Development
-EXPOSE 8080
-ENTRYPOINT ["dotnet", "BankMore.API.dll"]
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "BankMoreAPI.dll"]

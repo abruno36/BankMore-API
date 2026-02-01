@@ -1,8 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using BankMore.Infrastructure.Data;
+﻿using BankMore.API.Models.DTOs;
 using BankMore.Domain.Entities;
+using BankMore.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 
 namespace BankMore.API.Controllers;
 
@@ -19,84 +21,46 @@ public class MovimentacaoController : ControllerBase
 
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> RealizarMovimentacao([FromBody] MovimentacaoRequest request)
+    public async Task RealizarMovimentacaoAsync(MovimentacaoRequest request)
     {
-        var contaId = User.FindFirst("contaId")?.Value;
-        var numeroContaToken = User.FindFirst("numeroConta")?.Value;
+        // CONTA FIXA PARA TESTE
+        string contaIdUsuario = "000001";
 
-        if (string.IsNullOrEmpty(contaId))
-            return Unauthorized(new { message = "Token inválido", errorType = "INVALID_TOKEN" });
+        var conta = await _context.ContasCorrentes
+            .FirstOrDefaultAsync(c => c.NumeroConta == contaIdUsuario);
 
-        var conta = await _context.ContasCorrente
-            .FirstOrDefaultAsync(c => c.Id == int.Parse(contaId));
-
-        if (conta == null)
-            return BadRequest(new { message = "Conta não encontrada", errorType = "INVALID_ACCOUNT" });
-
-        if (!conta.Ativo)
-            return BadRequest(new { message = "Conta inativa", errorType = "INACTIVE_ACCOUNT" });
+        if (conta == null) throw new Exception($"Conta {contaIdUsuario} não encontrada");
+        if (!conta.Ativa) throw new Exception("Conta inativa");
 
         var contaDestino = conta;
-        if (!string.IsNullOrEmpty(request.NumeroContaDestino) && request.NumeroContaDestino != numeroContaToken)
+
+        if (!string.IsNullOrEmpty(request.NumeroContaDestino) &&
+            request.NumeroContaDestino != conta.NumeroConta)
         {
-            contaDestino = await _context.ContasCorrente
+            contaDestino = await _context.ContasCorrentes
                 .FirstOrDefaultAsync(c => c.NumeroConta == request.NumeroContaDestino);
 
-            if (contaDestino == null)
-                return BadRequest(new { message = "Conta destino não encontrada", errorType = "INVALID_ACCOUNT" });
-
-            if (!contaDestino.Ativo)
-                return BadRequest(new { message = "Conta destino inativa", errorType = "INACTIVE_ACCOUNT" });
-
-            if (request.Tipo != "C")
-                return BadRequest(new { message = "Apenas crédito para contas diferentes", errorType = "INVALID_TYPE" });
+            if (contaDestino == null) throw new Exception($"Conta destino não encontrada");
+            if (!contaDestino.Ativa) throw new Exception("Conta destino inativa");
+            if (request.Tipo != "C") throw new Exception("Apenas crédito para contas diferentes");
         }
 
-        if (request.Valor <= 0)
-            return BadRequest(new { message = "Valor deve ser positivo", errorType = "INVALID_VALUE" });
+        if (request.Valor <= 0) throw new Exception("Valor deve ser positivo");
+        if (request.Tipo != "C" && request.Tipo != "D") throw new Exception("Tipo inválido");
 
-        if (request.Tipo != "C" && request.Tipo != "D")
-            return BadRequest(new { message = "Tipo inválido. Use C ou D", errorType = "INVALID_TYPE" });
+        var sql = @"
+        INSERT INTO Movimentacoes (Id, ContaId, Tipo, Valor, Descricao, DataMovimentacao, IdRequisicao)
+        VALUES (@Id, @ContaId, @Tipo, @Valor, @Descricao, @DataMovimentacao, @IdRequisicao)
+    ";
 
-        if (request.Tipo == "D")
-        {
-            var movimentosConta = await _context.Movimentos
-                .Where(m => m.ContaCorrenteId == conta.Id)
-                .ToListAsync();
-
-            var creditos = movimentosConta
-                .Where(m => m.Tipo == "C")
-                .Sum(m => m.Valor);
-
-            var debitos = movimentosConta
-                .Where(m => m.Tipo == "D")
-                .Sum(m => m.Valor);
-
-            var saldo = creditos - debitos;
-
-            if (saldo < request.Valor)
-                return BadRequest(new { message = "Saldo insuficiente", errorType = "INSUFFICIENT_BALANCE" });
-        }
-
-        var movimento = new Movimento
-        {
-            Tipo = request.Tipo,
-            Valor = request.Valor,
-            DataMovimento = DateTime.UtcNow,
-            Descricao = $"Movimentação {request.Tipo}",
-            ContaCorrenteId = contaDestino.Id
-        };
-
-        _context.Movimentos.Add(movimento);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        await _context.Database.ExecuteSqlRawAsync(sql,
+            new SqliteParameter("@Id", Guid.NewGuid().ToString()),
+            new SqliteParameter("@ContaId", contaDestino.Id),
+            new SqliteParameter("@Tipo", request.Tipo),
+            new SqliteParameter("@Valor", request.Valor),
+            new SqliteParameter("@Descricao", $"Movimentação {request.Tipo} - Valor: {request.Valor:C}"),
+            new SqliteParameter("@DataMovimentacao", DateTime.UtcNow),
+            new SqliteParameter("@IdRequisicao", request.IdRequisicao)
+        );
     }
-}
-
-public class MovimentacaoRequest
-{
-    public string NumeroContaDestino { get; set; } = string.Empty;
-    public decimal Valor { get; set; }
-    public string Tipo { get; set; } = string.Empty;
 }

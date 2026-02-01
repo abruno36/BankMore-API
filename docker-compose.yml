@@ -1,11 +1,57 @@
+version: '3.8'
+
 services:
+  # Microsserviço 1: API Principal
   bankmore-api:
-    build: .
+    build: ./BankMore.API
     ports:
-      - "8080:8080"
-    volumes:
-      # MAPEIE seu banco local para dentro do container
-      - ./src/BankMore.API/bankmore.db:/app/data/bankmore.db
-      - ./src/BankMore.API/bankmore.db:/app/bankmore.db  # ou onde a app espera
+      - "5000:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/bankmore.db
+      - Jwt__Secret=minha-chave-super-secreta-para-jwt-token-2024
+    volumes:
+      - ./data:/app/data
+
+  # Microsserviço 2: API de Transferências
+  transferencia-api:
+    build: ./BankMore.Transferencia.API
+    ports:
+      - "7000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/bankmore.db
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - bankmore-api
+
+  # Microsserviço 3: API de Conta Corrente (básica)
+  contacorrente-api:
+    build: ./BankMore.ContaCorrente.API
+    ports:
+      - "8000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/bankmore.db
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - bankmore-api
+
+  # Swagger UI consolidado
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    ports:
+      - "8080:8080"
+    environment:
+      API_URLS: >
+        [
+          {"url":"http://bankmore-api:80/swagger/v1/swagger.json","name":"BankMore.API"},
+          {"url":"http://transferencia-api:80/swagger/v1/swagger.json","name":"Transferencia.API"},
+          {"url":"http://contacorrente-api:80/swagger/v1/swagger.json","name":"ContaCorrente.API"}
+        ]
+    depends_on:
+      - bankmore-api
+      - transferencia-api
+      - contacorrente-api

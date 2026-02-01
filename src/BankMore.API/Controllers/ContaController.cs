@@ -1,172 +1,89 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+﻿using BankMore.API.Models.DTOs;
+using BankMore.Shared.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using BankMore.API.Services;
-using BankMore.Infrastructure.Data;
-using BankMore.Domain.Entities;
 
-namespace BankMore.API.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class ContaController : ControllerBase
+namespace BankMore.API.Controllers
 {
-    private readonly BankMoreDbContext _context;
-    private readonly CryptoService _cryptoService;
-
-    public ContaController(BankMoreDbContext context)
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize]
+    public class ContaController : ControllerBase
     {
-        _context = context;
-        _cryptoService = new CryptoService();
-    }
+        private readonly IContaService _contaService;
 
-    [HttpPost("cadastrar")]
-    public async Task<IActionResult> Cadastrar([FromBody] CadastrarContaRequest request)
-    {
-        if (string.IsNullOrEmpty(request.Cpf) || request.Cpf.Length != 11)
-            return BadRequest(new { message = "CPF inválido", errorType = "INVALID_DOCUMENT" });
-
-        if (string.IsNullOrEmpty(request.Senha))
-            return BadRequest(new { message = "Senha é obrigatória", errorType = "INVALID_PASSWORD" });
-
-        var cpfCriptografado = _cryptoService.Encrypt(request.Cpf);
-
-        var contaExistente = await _context.ContasCorrente
-            .FirstOrDefaultAsync(c => c.CpfCriptografado == cpfCriptografado);
-
-        if (contaExistente != null)
-            return BadRequest(new { message = "CPF já cadastrado", errorType = "DUPLICATE_DOCUMENT" });
-
-        var numeroConta = new Random().Next(100000, 999999).ToString();
-
-        var conta = new ContaCorrente
+        public ContaController(IContaService contaService)
         {
-            CpfCriptografado = cpfCriptografado,
-            SenhaHash = BCrypt.Net.BCrypt.HashPassword(request.Senha),
-            NumeroConta = numeroConta,
-            NomeTitular = $"Cliente {numeroConta}",
-            Ativo = true,
-            DataCriacao = DateTime.UtcNow
-        };
+            _contaService = contaService;
+        }
 
-        _context.ContasCorrente.Add(conta);
-        await _context.SaveChangesAsync();
-
-        return Ok(new { numeroConta });
-    }
-
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
-    {
-        var contas = await _context.ContasCorrente.ToListAsync();
-
-        ContaCorrente conta = null;
-
-        conta = contas.FirstOrDefault(c => c.NumeroConta == request.Identificador);
-
-        if (conta == null)
+        [HttpPost("inativar")]
+        public async Task<IActionResult> Inativar([FromBody] InativarRequest request)
         {
-            foreach (var c in contas)
+            try
             {
-                var cpfDescriptografado = _cryptoService.Decrypt(c.CpfCriptografado);
-                if (cpfDescriptografado == request.Identificador)
-                {
-                    conta = c;
-                    break;
-                }
+                var contaIdClaim = User.FindFirst("contaId")?.Value;
+
+                if (string.IsNullOrEmpty(contaIdClaim))
+                    return Unauthorized(new { message = "Token inválido" });
+
+                if (request.Senha != request.ConfirmacaoSenha)
+                    return BadRequest(new { message = "Senha e confirmação não conferem" });
+
+                await _contaService.InativarContaAsync(contaIdClaim, request.Senha);
+                return NoContent();
+            }
+            catch (Exception ex) when (ex.Message.Contains("não encontrada"))
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { message = "Senha inválida" });
             }
         }
 
-        if (conta == null)
-            return Unauthorized(new { message = "Conta não encontrada", errorType = "USER_UNAUTHORIZED" });
-
-        var senhaValida = BCrypt.Net.BCrypt.Verify(request.Senha, conta.SenhaHash);
-
-        if (!senhaValida)
-            return Unauthorized(new { message = "Senha inválida", errorType = "USER_UNAUTHORIZED" });
-
-        if (!conta.Ativo)
-            return Unauthorized(new { message = "Conta inativa", errorType = "INACTIVE_ACCOUNT" });
-
-        var cpfDoUsuario = _cryptoService.Decrypt(conta.CpfCriptografado);
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes("MinhaChaveSecretaSuperSegura1234567890");
-
-        var tokenDescriptor = new SecurityTokenDescriptor
+        [HttpGet("dados")]
+        public async Task<IActionResult> ObterDados()
         {
-            Subject = new ClaimsIdentity(new[]
+            try
             {
-            new Claim("contaId", conta.Id.ToString()),
-            new Claim("numeroConta", conta.NumeroConta),
-            new Claim("cpf", cpfDoUsuario)
-        }),
-            Expires = DateTime.UtcNow.AddHours(3),
-            Issuer = "BankMore",
-            Audience = "BankMoreUsers",
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        };
+                var contaId = User.FindFirst("contaId")?.Value;
 
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        var tokenString = tokenHandler.WriteToken(token);
+                if (string.IsNullOrEmpty(contaId))
+                    return Unauthorized(new { message = "Token inválido" });
 
-        return Ok(new { token = tokenString });
-    }
+                var conta = await _contaService.ObterContaPorIdAsync(contaId);
 
-    [HttpGet("saldo")]
-    [Authorize]
-    public async Task<IActionResult> ConsultarSaldo()
-    {
-        var contaId = User.FindFirst("contaId")?.Value;
+                if (conta == null)
+                    return NotFound(new { message = "Conta não encontrada" });
 
-        if (string.IsNullOrEmpty(contaId))
-            return Unauthorized(new { message = "Token inválido", errorType = "INVALID_TOKEN" });
+                return Ok(conta);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
 
-        var conta = await _context.ContasCorrente
-            .FirstOrDefaultAsync(c => c.Id == int.Parse(contaId));
-
-        if (conta == null)
-            return BadRequest(new { message = "Conta não encontrada", errorType = "INVALID_ACCOUNT" });
-
-        if (!conta.Ativo)
-            return BadRequest(new { message = "Conta inativa", errorType = "INACTIVE_ACCOUNT" });
-
-        var movimentos = await _context.Movimentos
-            .Where(m => m.ContaCorrenteId == conta.Id)
-            .ToListAsync();
-
-        var creditos = movimentos
-            .Where(m => m.Tipo == "C")
-            .Sum(m => m.Valor);
-
-        var debitos = movimentos
-            .Where(m => m.Tipo == "D")
-            .Sum(m => m.Valor);
-
-        var saldo = creditos - debitos;
-
-        return Ok(new
+        [HttpGet("validar/{numeroConta}")]
+        public async Task<IActionResult> ValidarConta(string numeroConta)
         {
-            numeroConta = conta.NumeroConta,
-            nomeTitular = conta.NomeTitular,
-            dataConsulta = DateTime.UtcNow,
-            saldo = saldo
-        });
+            try
+            {
+                var conta = await _contaService.ObterContaPorNumeroAsync(numeroConta);
+                var contaValida = conta != null && conta.Ativo;
+
+                return Ok(new
+                {
+                    contaValida,
+                    message = contaValida ? "Conta válida" : "Conta inválida ou inativa"
+                });
+            }
+            catch (Exception)
+            {
+                return Ok(new { contaValida = false, message = "Conta não encontrada" });
+            }
+        }
     }
-}
-
-public class CadastrarContaRequest
-{
-    public string Cpf { get; set; } = string.Empty;
-    public string Senha { get; set; } = string.Empty;
-}
-
-public class LoginRequest
-{
-    public string Identificador { get; set; } = string.Empty;
-    public string Senha { get; set; } = string.Empty;
 }

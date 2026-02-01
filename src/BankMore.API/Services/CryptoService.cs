@@ -1,66 +1,69 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
 
-namespace BankMore.API.Services;
-
-public class CryptoService
+namespace BankMore.API.Services
 {
-    private readonly byte[] _key;
-
-    public CryptoService()
+    public interface ICryptoService
     {
-        var keyString = "Chave32BytesParaCriptografiaAES256!!";
-        _key = Encoding.UTF8.GetBytes(keyString);
-
-        if (_key.Length != 32)
-        {
-            Array.Resize(ref _key, 32);
-        }
+        string Criptografar(string texto);
+        string Descriptografar(string textoCriptografado);
+        string Hash(string texto);
     }
 
-    public string Encrypt(string text)
+    public class CryptoService : ICryptoService
     {
-        if (string.IsNullOrEmpty(text)) return text;
+        private readonly string _encryptionKey = "SuaChaveSecreta32CaracteresAqui123456";
+        private readonly byte[] _salt = Encoding.UTF8.GetBytes("BankMoreSalt2024");
 
-        using var aes = Aes.Create();
-        aes.Key = _key;
-        aes.IV = new byte[16];
-
-        var encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
-
-        using var ms = new MemoryStream();
-        using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
+        // Construtor SEM parâmetro temporariamente
+        public CryptoService()
         {
-            var bytes = Encoding.UTF8.GetBytes(text);
-            cs.Write(bytes, 0, bytes.Length);
         }
 
-        return Convert.ToBase64String(ms.ToArray());
-    }
-
-    public string Decrypt(string encryptedText)
-    {
-        if (string.IsNullOrEmpty(encryptedText)) return encryptedText;
-
-        try
+        public string Criptografar(string texto)
         {
             using var aes = Aes.Create();
-            aes.Key = _key;
-            aes.IV = new byte[16];
+            var key = new Rfc2898DeriveBytes(_encryptionKey, _salt, 10000, HashAlgorithmName.SHA256);
+            aes.Key = key.GetBytes(32);
+            aes.IV = key.GetBytes(16);
 
-            var decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+            using var encryptor = aes.CreateEncryptor();
+            using var ms = new MemoryStream();
+            using var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write);
 
-            var bytes = Convert.FromBase64String(encryptedText);
+            var textoBytes = Encoding.UTF8.GetBytes(texto);
+            cs.Write(textoBytes, 0, textoBytes.Length);
+            cs.FlushFinalBlock();
 
-            using var ms = new MemoryStream(bytes);
+            return Convert.ToBase64String(ms.ToArray());
+        }
+
+        public string Descriptografar(string textoCriptografado)
+        {
+            using var aes = Aes.Create();
+            var key = new Rfc2898DeriveBytes(_encryptionKey, _salt, 10000, HashAlgorithmName.SHA256);
+            aes.Key = key.GetBytes(32);
+            aes.IV = key.GetBytes(16);
+
+            using var decryptor = aes.CreateDecryptor();
+            using var ms = new MemoryStream(Convert.FromBase64String(textoCriptografado));
             using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
             using var sr = new StreamReader(cs);
 
             return sr.ReadToEnd();
         }
-        catch
+
+        public string Hash(string texto)
         {
-            return encryptedText;
+            using var sha256 = SHA256.Create();
+            var bytes = Encoding.UTF8.GetBytes(texto);
+            var hashBytes = sha256.ComputeHash(bytes);
+
+            var saltedBytes = new byte[hashBytes.Length + _salt.Length];
+            Buffer.BlockCopy(hashBytes, 0, saltedBytes, 0, hashBytes.Length);
+            Buffer.BlockCopy(_salt, 0, saltedBytes, hashBytes.Length, _salt.Length);
+
+            return Convert.ToBase64String(sha256.ComputeHash(saltedBytes));
         }
     }
 }
