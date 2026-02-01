@@ -188,21 +188,18 @@ docker-compose down
 - **docker-compose.yml** - Configuração para orquestração de containers
 
 BankMore/
-├── docs/                              # Documentação e Postman
-│   ├── BankMore.postman_collection.json
-│   └── BankMore Local.postman_environment.json
-│
-├── BankMore.API/                      # API Principal (porta 5294)
-├── BankMore.Transferencia.API/        # Microsserviço de Transferências (porta 5134)
-├── BankMore.ContaCorrente.API/        # Microsserviço de Contas (Opcional)
-│
-├── BankMore.Domain/                   # Domínios e entidades
-├── BankMore.Shared/                   # DTOs, Interfaces, Helpers
-├── BankMore.Infrastructure/           # Serviços, Repositórios, Data
-│
-├── docker-compose.yml                 # Orquestração Docker
-└── README.md                          # Documentação principal
-
+  ├── docs/                              # Documentação e Postman
+  │   ├── BankMore.postman_collection.json
+  │   └── BankMore.Local.postman_environment.json
+  ├── BankMore.API/                      # API Principal (porta 5294)
+  ├── BankMore.Transferencia.API/        # Microsserviço Transferências (porta 5134)
+  ├── BankMore.ContaCorrente.API/        # Microsserviço Contas (Opcional)
+  ├── BankMore.Domain/                   # Domínios e entidades
+  ├── BankMore.Shared/                   # DTOs, Interfaces, Helpers
+  ├── BankMore.Infrastructure/           # Serviços, Repositórios, Data
+  ├── docker-compose.yml                 # Orquestração Docker
+  └── README.md                          # Documentação principal
+  
 7. 🧪 TESTES E COLEÇÕES POSTMAN
 
 ### Coleções Disponíveis:
