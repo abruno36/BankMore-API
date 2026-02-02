@@ -86,6 +86,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddScoped<IContaService, ContaService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<BankMore.API.Services.IAuthService, AuthService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IMovimentacaoService, MovimentacaoService>();
@@ -140,8 +141,6 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-Console.WriteLine("🔄 Configurando banco de dados...");
 
 using (var scope = app.Services.CreateScope())
 {
@@ -219,7 +218,6 @@ using (var scope = app.Services.CreateScope())
         ";
 
         dbContext.Database.ExecuteSqlRaw(sql);
-        Console.WriteLine("✅ Todas as tabelas criadas/verificadas");
 
         if (!dbContext.ContasCorrentes.Any())
         {
@@ -242,8 +240,6 @@ using (var scope = app.Services.CreateScope())
             dbContext.SaveChanges();
             Console.WriteLine("👤 Usuário teste criado: 000001 / 123456");
         }
-
-        Console.WriteLine("🎉 Banco configurado com sucesso!");
     }
     catch (Exception ex)
     {

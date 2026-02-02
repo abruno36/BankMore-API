@@ -90,22 +90,14 @@ namespace BankMore.Infrastructure.Data
 
             if (novasContas.Any())
             {
-                Console.WriteLine($"⚠️ [DB CONTEXT] {novasContas.Count} nova(s) conta(s) sendo salva(s):");
 
                 foreach (var conta in novasContas)
                 {
-                    Console.WriteLine($"   Número: {conta.NumeroConta}");
-                    Console.WriteLine($"   CPFCriptografado: {conta.CPFCriptografado}");
-                    Console.WriteLine($"   CPFHash: {conta.CPFHash}");
-                    Console.WriteLine($"   Hash length: {conta.CPFHash?.Length}");
-
-                    // Verifica se o CPF está em texto
                     if (conta.CPFCriptografado != null &&
                         conta.CPFCriptografado.Length < 20 &&
                         !conta.CPFCriptografado.Contains("="))
                     {
-                        Console.WriteLine($"   ❌❌❌ CPF EM TEXTO PLANO DETECTADO!");
-                        Console.WriteLine($"   Stack Trace: {Environment.StackTrace}");
+
                     }
                 }
             }

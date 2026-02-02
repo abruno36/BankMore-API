@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using BankMore.API.Services;
+﻿using BankMore.API.Exceptions;
 using BankMore.API.Models.DTOs;
-using BankMore.API.Exceptions;
+using BankMore.API.Services;
+using BankMore.Domain.Exceptions;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace BankMore.API.Controllers
 {
@@ -19,7 +20,7 @@ namespace BankMore.API.Controllers
         }
 
         [HttpPost("cadastrar")]
-        public async Task<IActionResult> Cadastrar([FromBody] CadastroRequest request)
+        public async Task<IActionResult> Cadastrar([FromBody] Shared.Models.CadastroRequest request) // ← Agora é Shared.Models
         {
             try
             {
@@ -45,12 +46,24 @@ namespace BankMore.API.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] Shared.Models.LoginRequest request) // ← Agora é Shared.Models
         {
             try
             {
                 var token = await _authService.Autenticar(request);
                 return Ok(new { Token = token });
+            }
+            catch (ContaInativaException)
+            {
+                return Unauthorized(new ErrorResponse("Conta inativa", "CONTA_INATIVA"));
+            }
+            catch (ContaNaoEncontradaException)
+            {
+                return Unauthorized(new ErrorResponse("Conta não encontrada", "CONTA_NAO_ENCONTRADA"));
+            }
+            catch (SenhaIncorretaException)
+            {
+                return Unauthorized(new ErrorResponse("Senha incorreta", "SENHA_INCORRETA"));
             }
             catch (UnauthorizedAccessException)
             {

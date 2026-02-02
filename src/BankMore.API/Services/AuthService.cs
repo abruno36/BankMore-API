@@ -1,11 +1,12 @@
-﻿using BankMore.API.Models.DTOs;
+﻿using BankMore.API.Exceptions;
+using BankMore.API.Models.DTOs;
 using BankMore.Domain.Entities;
+using BankMore.Domain.Exceptions;
 using BankMore.Infrastructure.Data;
+using BankMore.Shared.Interfaces;
+using BankMore.Shared.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace BankMore.API.Services
 {
@@ -15,46 +16,50 @@ namespace BankMore.API.Services
         private readonly IPasswordHasher _passwordHasher;
         private readonly IConfiguration _configuration;
         private readonly ICryptoService _cryptoService;
+        private readonly ITokenService _tokenService;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             BankMoreDbContext context,
             IPasswordHasher passwordHasher,
             IConfiguration configuration,
-            ICryptoService cryptoService)
+            ICryptoService cryptoService,
+            ITokenService tokenService,
+            ILogger<AuthService> logger)
         {
             _context = context;
             _passwordHasher = passwordHasher;
             _configuration = configuration;
             _cryptoService = cryptoService;
+            _tokenService = tokenService;
+            _logger = logger;
         }
 
-        public async Task<ContaCorrente> CadastrarUsuario(CadastroRequest request)
+        public async Task<ContaCorrente> CadastrarUsuario(Shared.Models.CadastroRequest request)
         {
-            var cpfLimpo = new string(request.CPF.Where(char.IsDigit).ToArray());
+            var cpfLimpo = new string(request.Cpf.Where(char.IsDigit).ToArray());
+
             if (cpfLimpo.Length != 11)
-                throw new Exception("CPF inválido");
+                throw new DomainException("CPF inválido", "INVALID_DOCUMENT");
 
             var cpfHash = _cryptoService.Hash(cpfLimpo);
+            var cpfExistente = await _context.ContasCorrentes
+                .FirstOrDefaultAsync(c => c.CPFHash == cpfHash);
 
-            if (await _context.ContasCorrentes.AnyAsync(c => c.CPFHash == cpfHash))
-                throw new Exception("CPF já cadastrado");
+            if (cpfExistente != null)
+                throw new DomainException("CPF já cadastrado", "DUPLICATE_DOCUMENT");
 
-            var emailExistente = await _context.ContasCorrentes
-                .AnyAsync(c => c.Email == request.Email);
-
-            if (emailExistente)
-                throw new Exception("Email já cadastrado");
-
+            var senhaHash = _passwordHasher.HashPassword(request.Senha);
             var cpfCriptografado = _cryptoService.Criptografar(cpfLimpo);
 
             var conta = new ContaCorrente
             {
+                NumeroConta = await GerarNumeroContaUnico(),
                 CPFCriptografado = cpfCriptografado,
                 CPFHash = cpfHash,
-                NomeTitular = request.NomeCompleto,
-                Email = request.Email,
-                SenhaHash = _passwordHasher.HashPassword(request.Senha),
-                NumeroConta = await GerarNumeroContaUnico(),
+                SenhaHash = senhaHash,
+                NomeTitular = request.NomeTitular,
+                Email = "",
                 Ativa = true,
                 DataCriacao = DateTime.UtcNow
             };
@@ -62,62 +67,34 @@ namespace BankMore.API.Services
             _context.ContasCorrentes.Add(conta);
             await _context.SaveChangesAsync();
 
+            _logger.LogInformation("Conta cadastrada: {NumeroConta}", conta.NumeroConta);
+
             return conta;
         }
 
-        private async Task<string> GerarNumeroContaUnico()
+        public async Task<string> Autenticar(Shared.Models.LoginRequest request)
         {
-            string numeroConta;
-            bool existe;
-
-            var random = new Random();
-
-            do
-            {
-                numeroConta = random.Next(100000, 999999).ToString("000000");
-                existe = await _context.ContasCorrentes
-                    .AnyAsync(c => c.NumeroConta == numeroConta);
-            } while (existe);
-
-            return numeroConta;
-        }
-
-        public async Task<string> Autenticar(LoginRequest request)
-        {
-            ContaCorrente? conta = null;
-
-            var cpfHash = _cryptoService.Hash(request.Identificador);
-            conta = await _context.ContasCorrentes
-                .FirstOrDefaultAsync(c => c.CPFHash == cpfHash);
+            var conta = await _context.ContasCorrentes
+                .FirstOrDefaultAsync(c => c.NumeroConta == request.Identificador);
 
             if (conta == null)
-            {
-                conta = await _context.ContasCorrentes
-                    .FirstOrDefaultAsync(c => c.NumeroConta == request.Identificador);
-            }
+                throw new ContaNaoEncontradaException();
 
-            if (conta == null || !conta.Ativa)
-                throw new UnauthorizedAccessException("Conta não encontrada ou inativa");
+            if (!conta.Ativa)
+                throw new ContaInativaException();
 
             if (!_passwordHasher.VerifyPassword(request.Senha, conta.SenhaHash))
-                throw new UnauthorizedAccessException("Senha inválida");
+                throw new SenhaIncorretaException();
 
-            return GenerateToken(conta);
+            _logger.LogInformation("Login bem-sucedido: {NumeroConta}", conta.NumeroConta);
+
+            return _tokenService.GenerateToken(conta.Id.ToString(), conta.Email ?? "");
         }
 
         public async Task<bool> ValidarCredenciais(string identificador, string senha)
         {
-            ContaCorrente? conta = null;
-
-            var cpfHash = _cryptoService.Hash(identificador);
-            conta = await _context.ContasCorrentes
-                .FirstOrDefaultAsync(c => c.CPFHash == cpfHash);
-
-            if (conta == null)
-            {
-                conta = await _context.ContasCorrentes
-                    .FirstOrDefaultAsync(c => c.NumeroConta == identificador);
-            }
+            var conta = await _context.ContasCorrentes
+                .FirstOrDefaultAsync(c => c.NumeroConta == identificador);
 
             if (conta == null || !conta.Ativa)
                 return false;
@@ -125,40 +102,17 @@ namespace BankMore.API.Services
             return _passwordHasher.VerifyPassword(senha, conta.SenhaHash);
         }
 
-        private string GenerateToken(ContaCorrente conta)
+        private async Task<string> GerarNumeroContaUnico()
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Secret"]);
+            var random = new Random();
+            string numeroConta;
 
-            var tokenDescriptor = new SecurityTokenDescriptor
+            do
             {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim("contaId", conta.NumeroConta),
-                    new Claim("cpf", conta.CPFCriptografado),
-                    new Claim(ClaimTypes.Name, conta.NomeTitular)
-                }),
-                Expires = DateTime.UtcNow.AddHours(2),
-                Issuer = _configuration["Jwt:Issuer"],
-                Audience = _configuration["Jwt:Audience"],
-                SigningCredentials = new SigningCredentials(
-                    new SymmetricSecurityKey(key),
-                    SecurityAlgorithms.HmacSha256Signature)
-            };
+                numeroConta = random.Next(100000, 999999).ToString("000000");
+            } while (await _context.ContasCorrentes.AnyAsync(c => c.NumeroConta == numeroConta));
 
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
-        }
-
-        private bool ValidarCPF(string cpf)
-        {
-            cpf = new string(cpf.Where(char.IsDigit).ToArray());
-            return cpf.Length == 11;
-        }
-
-        private string GerarNumeroConta()
-        {
-            return new Random().Next(100000, 999999).ToString("000000");
+            return numeroConta;
         }
     }
 }

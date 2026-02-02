@@ -17,8 +17,6 @@ namespace BankMore.API.Services
 
         public async Task RealizarMovimentacaoAsync(MovimentacaoRequest request, string contaIdUsuario)
         {
-            Console.WriteLine($"DEBUG: contaIdUsuario = {contaIdUsuario}");
-
             var conta = await _context.ContasCorrentes
                 .FirstOrDefaultAsync(c => c.NumeroConta == contaIdUsuario);
 
@@ -28,15 +26,11 @@ namespace BankMore.API.Services
             if (!conta.Ativa)
                 throw new Exception("Conta inativa");
 
-            Console.WriteLine($"DEBUG: Conta origem encontrada: {conta.NumeroConta}, ID: {conta.Id}");
-
             var contaDestino = conta;
 
             if (!string.IsNullOrEmpty(request.NumeroContaDestino) &&
                 request.NumeroContaDestino != conta.NumeroConta)
             {
-                Console.WriteLine($"DEBUG: Buscando conta destino: {request.NumeroContaDestino}");
-
                 contaDestino = await _context.ContasCorrentes
                     .FirstOrDefaultAsync(c => c.NumeroConta == request.NumeroContaDestino);
 
@@ -49,7 +43,6 @@ namespace BankMore.API.Services
                 if (request.Tipo != "C")
                     throw new Exception("Apenas crédito para contas diferentes");
 
-                Console.WriteLine($"DEBUG: Conta destino encontrada: {contaDestino.NumeroConta}, ID: {contaDestino.Id}");
             }
 
             if (request.Valor <= 0)
@@ -61,7 +54,6 @@ namespace BankMore.API.Services
             if (request.Tipo == "D")
             {
                 var saldo = await CalcularSaldoAsync(conta.NumeroConta);
-                Console.WriteLine($"DEBUG: Saldo da conta {conta.NumeroConta} = {saldo}");
 
                 if (saldo < request.Valor)
                     throw new Exception($"Saldo insuficiente. Saldo: {saldo}, Valor: {request.Valor}");
@@ -77,29 +69,17 @@ namespace BankMore.API.Services
                 IdRequisicao = request.IdRequisicao
             };
 
-            Console.WriteLine($"DEBUG: Criando movimento:");
-            Console.WriteLine($"  Tipo: {movimento.Tipo}");
-            Console.WriteLine($"  Valor: {movimento.Valor}");
-            Console.WriteLine($"  ContaCorrenteId: {movimento.ContaCorrenteId}");
-            Console.WriteLine($"  IdRequisicao: {movimento.IdRequisicao}");
-
             _context.Movimentos.Add(movimento);
 
             try
             {
                 _context.Movimentos.Add(movimento);
                 var debugInfo = _context.ChangeTracker.DebugView.LongView;
-                Console.WriteLine("=== DEBUG EF CHANGE TRACKER ===");
-                Console.WriteLine(debugInfo);
-                Console.WriteLine("=== FIM DEBUG ===");
 
                 await _context.SaveChangesAsync();
-                Console.WriteLine("DEBUG: Movimento salvo com sucesso!");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"DEBUG ERRO: {ex.Message}");
-                Console.WriteLine($"DEBUG Inner: {ex.InnerException?.Message}");
                 throw;
             }
         }
